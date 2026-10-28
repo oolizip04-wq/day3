@@ -32,15 +32,16 @@ function find_spots({ area, indoor } = {}) {
   };
 }
 
-// 입력: { area } -> OpenWeatherMap 현재 날씨. API 키는 환경변수 OPENWEATHER_API_KEY 에서만 읽는다.
-async function get_weather({ area } = {}) {
+// 입력: { area } -> OpenWeatherMap 현재 날씨.
+// API 키는 화면에서 받은 값(keys.openweather)을 먼저 쓰고, 없으면 환경변수 OPENWEATHER_API_KEY 를 쓴다.
+async function get_weather({ area } = {}, keys = {}) {
   const point = AREA_POINT[area];
   if (!point) {
     return { error: 'area 는 ' + AREAS.join(' · ') + ' 중 하나여야 합니다.' };
   }
-  const key = process.env.OPENWEATHER_API_KEY;
+  const key = keys.openweather || process.env.OPENWEATHER_API_KEY;
   if (!key) {
-    return { error: 'OPENWEATHER_API_KEY 환경변수가 설정되지 않았어요.' };
+    return { error: '날씨 API 키가 없어요. 화면의 "API 키 설정"에 OpenWeather 키를 입력하세요.' };
   }
   const url = 'https://api.openweathermap.org/data/2.5/weather?' + new URLSearchParams({
     lat: point.lat, lon: point.lon, appid: key, units: 'metric', lang: 'kr'

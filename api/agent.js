@@ -1,6 +1,7 @@
 // Vercel Serverless Function: 제주 여행 추천 에이전트
 // Claude 가 find_spots / get_weather 도구를 스스로 골라 호출하고, 그 결과로 추천 답변을 만든다.
-// 환경변수: ANTHROPIC_API_KEY (필수), OPENWEATHER_API_KEY (get_weather 용), ANTHROPIC_MODEL (선택)
+// API 키: 요청에 담긴 anthropicKey · weatherKey 를 먼저 쓰고, 없으면 환경변수
+//         ANTHROPIC_API_KEY · OPENWEATHER_API_KEY 를 쓴다. 모델은 ANTHROPIC_MODEL (선택)
 const { tools, handlers } = require('./tools');
 
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-5-5';
@@ -13,12 +14,12 @@ const SYSTEM =
   '- 지역을 말하지 않았다면 사용자에게 되묻거나, 날씨와 조건을 보고 합리적으로 한 곳을 골라 이유를 말한다.\n' +
   '- 답변은 한국어로 짧게: 날씨 한 줄, 추천 장소 3~5곳(이름 · 왜 좋은지).';
 
-async function callClaude(messages) {
+async function callClaude(messages, apiKey) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'x-api-key': apiKey,
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({ model: MODEL, max_tokens: 1024, system: SYSTEM, tools, messages })
@@ -31,10 +32,13 @@ async function callClaude(messages) {
 }
 
 module.exports = async (req, res) => {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY 환경변수가 설정되지 않았어요.' });
-  }
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+  // 화면에서 입력한 키를 먼저 쓰고, 없으면 환경변수를 쓴다. 키는 저장하거나 기록하지 않는다.
+  const anthropicKey = String(body.anthropicKey || '').trim() || process.env.ANTHROPIC_API_KEY;
+  const keys = { openweather: String(body.weatherKey || '').trim() };
+  if (!anthropicKey) {
+    return res.status(400).json({ error: 'Anthropic API 키가 없어요. 화면의 "API 키 설정"에 입력하세요.' });
+  }
   const message = String(body.message || '').trim().slice(0, 500);
   if (!message) {
     return res.status(400).json({ error: '질문을 입력하세요.' });
@@ -45,7 +49,7 @@ module.exports = async (req, res) => {
 
   try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const reply = await callClaude(messages);
+      const reply = await callClaude(messages, anthropicKey);
       messages.push({ role: 'assistant', content: reply.content });
 
       if (reply.stop_reason !== 'tool_use') {
@@ -59,7 +63,7 @@ module.exports = async (req, res) => {
         const handler = handlers[block.name];
         let output;
         try {
-          output = handler ? await handler(block.input) : { error: '알 수 없는 도구: ' + block.name };
+          output = handler ? await handler(block.input, keys) : { error: '알 수 없는 도구: ' + block.name };
         } catch (err) {
           output = { error: String(err.message || err) };
         }

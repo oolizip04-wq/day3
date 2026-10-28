@@ -28,6 +28,12 @@
         #answer { white-space: pre-wrap; line-height: 1.6; }
         #map { height: 320px; border-radius: 8px; margin-top: 8px; }
         #error { color: #c0392b; }
+        #keyBox { margin: 0 0 14px; }
+        .field { display: block; margin-top: 10px; font-size: .85rem; color: #4a5a78; }
+        .field input { display: block; width: 100%; margin-top: 4px; }
+        .remember { display: block; margin: 10px 0 4px; font-size: .9rem; }
+        .remember input { flex: none; }
+        .sub2 { font-size: .8rem; color: #6b7894; font-weight: normal; }
     </style>
 </head>
 <body>
@@ -37,6 +43,18 @@
     </header>
 
     <main>
+        <details class="box" id="keyBox" open>
+            <summary><b>🔑 API 키 설정</b> <span class="sub2">(본인 키만 입력하세요)</span></summary>
+            <label class="field">Anthropic API 키 (에이전트)
+                <input id="anthropicKey" type="password" placeholder="sk-ant-..." autocomplete="off">
+            </label>
+            <label class="field">OpenWeather API 키 (날씨)
+                <input id="weatherKey" type="password" placeholder="32자리 키" autocomplete="off">
+            </label>
+            <label class="remember"><input id="remember" type="checkbox"> 이 브라우저에 기억하기</label>
+            <div class="sub2">키는 이 사이트의 서버로 보내져 Anthropic · OpenWeather 호출에만 쓰이며 서버에 저장되지 않습니다. 공용 PC에서는 기억하기를 끄세요.</div>
+        </details>
+
         <form id="form">
             <input id="q" placeholder="예) 서귀포에서 오늘 가기 좋은 곳 알려줘" maxlength="200" autocomplete="off">
             <button id="send" type="submit">추천받기</button>
@@ -85,6 +103,30 @@
         let map = null
         let layer = null
 
+        const anthropicKey = document.getElementById("anthropicKey")
+        const weatherKey = document.getElementById("weatherKey")
+        const remember = document.getElementById("remember")
+
+        // 기억하기를 켠 경우에만 이 브라우저(localStorage)에 키를 저장한다. 막혀 있어도 동작해야 한다.
+        try {
+            anthropicKey.value = localStorage.getItem("anthropicKey") || ""
+            weatherKey.value = localStorage.getItem("weatherKey") || ""
+            remember.checked = !!(anthropicKey.value || weatherKey.value)
+            if (anthropicKey.value) document.getElementById("keyBox").open = false
+        } catch (err) {}
+
+        function saveKeys() {
+            try {
+                if (remember.checked) {
+                    localStorage.setItem("anthropicKey", anthropicKey.value.trim())
+                    localStorage.setItem("weatherKey", weatherKey.value.trim())
+                } else {
+                    localStorage.removeItem("anthropicKey")
+                    localStorage.removeItem("weatherKey")
+                }
+            } catch (err) {}
+        }
+
         for (const ex of document.querySelectorAll(".examples span")) {
             ex.addEventListener("click", () => { q.value = ex.textContent; form.requestSubmit() })
         }
@@ -94,6 +136,7 @@
             const message = q.value.trim()
             if (!message) return
 
+            saveKeys()
             send.disabled = true
             send.textContent = "생각 중..."
             errorBox.textContent = ""
@@ -104,7 +147,11 @@
                 const res = await fetch("/api/agent", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ message })
+                    body: JSON.stringify({
+                        message,
+                        anthropicKey: anthropicKey.value.trim(),
+                        weatherKey: weatherKey.value.trim()
+                    })
                 })
                 const data = await res.json()
                 if (!res.ok) throw new Error(data.error || "요청 실패")
