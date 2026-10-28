@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>제주 관광지 지도</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 16px; }
+        form { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 12px; }
+        #map { height: 60vh; min-height: 320px; border-radius: 8px; }
+        #msg { margin: 8px 0; color: #555; }
+        #list { padding-left: 20px; }
+    </style>
+</head>
+<body>
+    <h1>제주 관광지 지도</h1>
+    <form id="form">
+        <label>지역
+            <select id="area">
+                <option>동쪽</option>
+                <option>서쪽</option>
+                <option>서귀포</option>
+                <option>제주시</option>
+            </select>
+        </label>
+        <label>실내/야외
+            <select id="indoor">
+                <option value="">전체</option>
+                <option value="true">실내</option>
+                <option value="false">야외</option>
+            </select>
+        </label>
+        <button type="submit">찾기</button>
+    </form>
+    <div id="msg"></div>
+    <div id="map"></div>
+    <ul id="list"></ul>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // 장소별 좌표가 없어서, 지역(areas)의 중심 좌표에 묶어서 표시한다. (대략적인 위치)
+        const center = {
+            "동쪽(성산)": [33.458, 126.942],
+            "동쪽(구좌)": [33.520, 126.850],
+            "제주시":     [33.500, 126.531],
+            "서쪽(한림)": [33.414, 126.268],
+            "서쪽(안덕)": [33.265, 126.330],
+            "서귀포":     [33.254, 126.560]
+        }
+
+        const map = L.map("map").setView([33.38, 126.55], 10)
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 18,
+            attribution: "&copy; OpenStreetMap"
+        }).addTo(map)
+        const layer = L.layerGroup().addTo(map)
+
+        const msg = document.getElementById("msg")
+        const list = document.getElementById("list")
+
+        document.getElementById("form").addEventListener("submit", async (e) => {
+            e.preventDefault()
+            const area = document.getElementById("area").value
+            const indoor = document.getElementById("indoor").value
+            const query = new URLSearchParams({ area })
+            if (indoor) query.set("indoor", indoor)
+
+            layer.clearLayers()
+            list.textContent = ""
+            msg.textContent = "찾는 중..."
+
+            try {
+                const res = await fetch("/api/find_spots?" + query)
+                const data = await res.json()
+                if (!res.ok) throw new Error(data.error || "요청 실패")
+
+                msg.textContent = `조건에 맞는 곳 ${data.total}곳 중 ${data.spots.length}곳을 표시합니다.`
+
+                // 같은 지역끼리 묶는다.
+                const groups = {}
+                for (const s of data.spots) {
+                    (groups[s.areas] = groups[s.areas] || []).push(s)
+
+                    const li = document.createElement("li")
+                    li.textContent = `${s.name} (${s.areas}, ${s.indoor ? "실내" : "야외"}) - ${s.description}`
+                    list.appendChild(li)
+                }
+
+                const points = []
+                for (const [name, spots] of Object.entries(groups)) {
+                    const pos = center[name]
+                    if (!pos) continue
+                    points.push(pos)
+
+                    const popup = document.createElement("div")
+                    const title = document.createElement("b")
+                    title.textContent = name
+                    popup.appendChild(title)
+                    for (const s of spots) {
+                        const line = document.createElement("div")
+                        line.textContent = `${s.name} · ${s.indoor ? "실내" : "야외"} · ${s.description}`
+                        popup.appendChild(line)
+                    }
+                    L.marker(pos).addTo(layer).bindPopup(popup).bindTooltip(`${name} ${spots.length}곳`)
+                }
+                if (points.length) map.fitBounds(points, { padding: [40, 40], maxZoom: 11 })
+            } catch (err) {
+                msg.textContent = "오류: " + err.message
+            }
+        })
+    </script>
+</body>
+</html>
