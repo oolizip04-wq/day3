@@ -1,4 +1,4 @@
-// Claude 도구 모음: find_spots(관광지 찾기) · get_weather(날씨 조회)
+// 에이전트 도구 모음: find_spots(관광지 찾기) · get_weather(날씨 조회)
 const data = require('../jeju_spots.json');
 
 const AREAS = ['동쪽', '서쪽', '서귀포', '제주시'];
@@ -32,19 +32,32 @@ function find_spots({ area, indoor } = {}) {
   };
 }
 
-// 입력: { area } -> OpenWeatherMap 현재 날씨.
-// API 키는 화면에서 받은 값(keys.openweather)을 먼저 쓰고, 없으면 환경변수 OPENWEATHER_API_KEY 를 쓴다.
-async function get_weather({ area } = {}, keys = {}) {
+// Open-Meteo 의 날씨 코드(WMO) -> 한글 설명
+function weatherText(code) {
+  if (code === 0) return '맑음';
+  if (code <= 3) return '구름 조금 ~ 흐림';
+  if (code <= 48) return '안개';
+  if (code <= 57) return '이슬비';
+  if (code <= 67) return '비';
+  if (code <= 77) return '눈';
+  if (code <= 82) return '소나기';
+  if (code <= 86) return '눈 소나기';
+  return '뇌우';
+}
+
+// 입력: { area } -> Open-Meteo(open-meteo.com) 현재 날씨와 오늘 예보. API 키가 필요 없다.
+async function get_weather({ area } = {}) {
   const point = AREA_POINT[area];
   if (!point) {
     return { error: 'area 는 ' + AREAS.join(' · ') + ' 중 하나여야 합니다.' };
   }
-  const key = keys.openweather || process.env.OPENWEATHER_API_KEY;
-  if (!key) {
-    return { error: '날씨 API 키가 없어요. 화면의 "API 키 설정"에 OpenWeather 키를 입력하세요.' };
-  }
-  const url = 'https://api.openweathermap.org/data/2.5/weather?' + new URLSearchParams({
-    lat: point.lat, lon: point.lon, appid: key, units: 'metric', lang: 'kr'
+  const url = 'https://api.open-meteo.com/v1/forecast?' + new URLSearchParams({
+    latitude: point.lat,
+    longitude: point.lon,
+    current: 'temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,wind_speed_10m,weather_code',
+    daily: 'precipitation_probability_max,temperature_2m_max,temperature_2m_min',
+    timezone: 'Asia/Seoul',
+    forecast_days: 1
   });
   const res = await fetch(url);
   if (!res.ok) {
@@ -53,16 +66,19 @@ async function get_weather({ area } = {}, keys = {}) {
   const w = await res.json();
   return {
     area,
-    description: w.weather && w.weather[0] ? w.weather[0].description : '',
-    temp: w.main.temp,
-    feels_like: w.main.feels_like,
-    humidity: w.main.humidity,
-    wind_speed: w.wind ? w.wind.speed : 0,
-    rain_mm_1h: w.rain ? w.rain['1h'] || 0 : 0
+    description: weatherText(w.current.weather_code),
+    temp: w.current.temperature_2m,
+    feels_like: w.current.apparent_temperature,
+    humidity: w.current.relative_humidity_2m,
+    wind_kmh: w.current.wind_speed_10m,
+    rain_mm: w.current.precipitation,
+    today_rain_chance_percent: w.daily.precipitation_probability_max[0],
+    today_max: w.daily.temperature_2m_max[0],
+    today_min: w.daily.temperature_2m_min[0]
   };
 }
 
-// Claude API 의 tools 배열에 그대로 넣을 도구 설명
+// 도구 설명 (name · description · input_schema). Gemini 에는 아래에서 형식을 바꿔서 쓴다.
 const find_spots_tool = {
   name: 'find_spots',
   description:
@@ -89,8 +105,8 @@ const find_spots_tool = {
 const get_weather_tool = {
   name: 'get_weather',
   description:
-    '제주도 지역의 현재 날씨(날씨 설명 · 기온 · 체감온도 · 습도 · 풍속 · 최근 1시간 강수량)를 알려 준다. ' +
-    '야외와 실내 중 어느 쪽을 추천할지 정할 때 먼저 호출한다. 예보가 아니라 현재 날씨다.',
+    '제주도 지역의 현재 날씨(날씨 설명 · 기온 · 체감온도 · 습도 · 풍속 · 강수량)와 오늘의 최고/최저 기온 · 강수 확률을 알려 준다. ' +
+    '야외와 실내 중 어느 쪽을 추천할지 정할 때 먼저 호출한다.',
   input_schema: {
     type: 'object',
     properties: {

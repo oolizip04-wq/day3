@@ -40,25 +40,22 @@
 <body>
     <header>
         <h1>🏝️ 제주 여행 추천 에이전트</h1>
-        <div class="sub">Gemini가 관광지 목록(find_spots)과 현재 날씨(get_weather) 도구를 스스로 골라 호출해서 추천해 줘요.</div>
+        <div class="sub">Gemini가 관광지 목록(find_spots)과 현재 날씨(get_weather, Open-Meteo) 도구를 스스로 골라 호출해서 추천해 줘요.</div>
     </header>
 
     <main>
-        <details class="box" id="keyBox" open>
-            <summary><b>🔑 API 키 설정</b> <span class="sub2">(본인 키만 입력하세요)</span></summary>
-            <label class="field">Gemini API 키 (에이전트)
+        <details class="box" id="keyBox">
+            <summary><b>🔑 API 키 직접 입력</b> <span class="sub2">(선택 · 서버에 환경변수 GEMINI_API_KEY 가 설정돼 있으면 필요 없어요)</span></summary>
+            <label class="field">Gemini API 키
                 <input id="geminiKey" type="password" placeholder="AIza..." autocomplete="off">
-            </label>
-            <label class="field">OpenWeather API 키 (날씨)
-                <input id="weatherKey" type="password" placeholder="32자리 키" autocomplete="off">
             </label>
             <label class="remember"><input id="remember" type="checkbox"> 이 브라우저에 기억하기</label>
             <div class="sub2 guide">
                 <b>키 발급 방법</b><br>
-                ① Gemini: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com</a> 접속 → Google 로그인 → <b>Get API key</b> → <b>Create API key</b> → 만들어진 키 복사<br>
-                ② 날씨: <a href="https://home.openweathermap.org/api_keys" target="_blank" rel="noopener">openweathermap.org</a> 가입 → My API keys → 키 복사 (발급 직후엔 활성화에 시간이 걸릴 수 있어요)
+                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com</a> 접속 → Google 로그인 → <b>Get API key</b> → <b>Create API key</b> → 만들어진 키 복사<br>
+                날씨는 Open-Meteo를 쓰기 때문에 키가 필요 없어요.
             </div>
-            <div class="sub2">키는 이 사이트의 서버로 보내져 Google · OpenWeather 호출에만 쓰이며 서버에 저장되지 않습니다. 공용 PC에서는 기억하기를 끄세요.</div>
+            <div class="sub2">입력한 키는 이 사이트의 서버로 보내져 Google 호출에만 쓰이며 서버에 저장되지 않습니다. 공용 PC에서는 기억하기를 끄세요.</div>
         </details>
 
         <form id="form">
@@ -110,25 +107,20 @@
         let layer = null
 
         const geminiKey = document.getElementById("geminiKey")
-        const weatherKey = document.getElementById("weatherKey")
         const remember = document.getElementById("remember")
 
         // 기억하기를 켠 경우에만 이 브라우저(localStorage)에 키를 저장한다. 막혀 있어도 동작해야 한다.
         try {
             geminiKey.value = localStorage.getItem("geminiKey") || ""
-            weatherKey.value = localStorage.getItem("weatherKey") || ""
-            remember.checked = !!(geminiKey.value || weatherKey.value)
-            if (geminiKey.value) document.getElementById("keyBox").open = false
+            remember.checked = !!geminiKey.value
         } catch (err) {}
 
         function saveKeys() {
             try {
                 if (remember.checked) {
                     localStorage.setItem("geminiKey", geminiKey.value.trim())
-                    localStorage.setItem("weatherKey", weatherKey.value.trim())
                 } else {
                     localStorage.removeItem("geminiKey")
-                    localStorage.removeItem("weatherKey")
                 }
             } catch (err) {}
         }
@@ -155,8 +147,7 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         message,
-                        geminiKey: geminiKey.value.trim(),
-                        weatherKey: weatherKey.value.trim()
+                        geminiKey: geminiKey.value.trim()
                     })
                 })
                 const data = await res.json()

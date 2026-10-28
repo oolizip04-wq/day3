@@ -1,7 +1,7 @@
 // Vercel Serverless Function: 제주 여행 추천 에이전트 (Google Gemini API)
 // Gemini 가 find_spots / get_weather 도구를 스스로 골라 호출하고, 그 결과로 추천 답변을 만든다.
-// API 키: 요청에 담긴 geminiKey · weatherKey 를 먼저 쓰고, 없으면 환경변수
-//         GEMINI_API_KEY · OPENWEATHER_API_KEY 를 쓴다. 모델은 GEMINI_MODEL (선택)
+// API 키: Vercel 환경변수 GEMINI_API_KEY 를 쓴다. (날씨는 Open-Meteo 라서 키가 필요 없다.)
+//         화면에서 키를 직접 입력하면(geminiKey) 그 키를 대신 쓴다. 모델은 GEMINI_MODEL (선택)
 const { functionDeclarations, handlers } = require('./tools');
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
@@ -34,11 +34,10 @@ async function callGemini(contents, apiKey) {
 
 module.exports = async (req, res) => {
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-  // 화면에서 입력한 키를 먼저 쓰고, 없으면 환경변수를 쓴다. 키는 저장하거나 기록하지 않는다.
+  // 환경변수 키를 기본으로 쓰고, 화면에서 입력한 키가 있으면 그것을 쓴다. 키는 저장하거나 기록하지 않는다.
   const geminiKey = String(body.geminiKey || '').trim() || process.env.GEMINI_API_KEY;
-  const keys = { openweather: String(body.weatherKey || '').trim() };
   if (!geminiKey) {
-    return res.status(400).json({ error: 'Gemini API 키가 없어요. 화면의 "API 키 설정"에 입력하세요.' });
+    return res.status(400).json({ error: 'Gemini API 키가 없어요. Vercel 환경변수 GEMINI_API_KEY 를 설정하거나, 화면의 "API 키 설정"에 입력하세요.' });
   }
   const message = String(body.message || '').trim().slice(0, 500);
   if (!message) {
@@ -71,7 +70,7 @@ module.exports = async (req, res) => {
         const handler = handlers[functionCall.name];
         let output;
         try {
-          output = handler ? await handler(functionCall.args || {}, keys) : { error: '알 수 없는 도구: ' + functionCall.name };
+          output = handler ? await handler(functionCall.args || {}) : { error: '알 수 없는 도구: ' + functionCall.name };
         } catch (err) {
           output = { error: String(err.message || err) };
         }
