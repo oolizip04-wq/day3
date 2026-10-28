@@ -6,80 +6,168 @@
     <title>제주 여행 추천 에이전트</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <style>
+        :root {
+            --bg: #f6f5f1;
+            --card: #ffffff;
+            --text: #26302c;
+            --muted: #6a746f;
+            --line: #e4e2da;
+            --accent: #2f6f62;
+            --accent-soft: #e4efeb;
+            --weather: #b8741a;
+            --weather-soft: #f6ead6;
+            --error: #b3412f;
+            --shadow: 0 1px 3px rgba(40, 50, 45, .06), 0 6px 18px rgba(40, 50, 45, .05);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #151a1b;
+                --card: #1e2425;
+                --text: #e6ebe8;
+                --muted: #98a39d;
+                --line: #2e3637;
+                --accent: #6fb7a6;
+                --accent-soft: #22332f;
+                --weather: #e0a458;
+                --weather-soft: #3a2f1f;
+                --error: #e58a78;
+                --shadow: none;
+            }
+        }
+
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: sans-serif; background: #f4f7fb; color: #1d2433; }
-        header { padding: 16px; background: #0f4c81; color: #fff; }
-        h1 { margin: 0 0 4px; font-size: 1.3rem; }
-        .sub { font-size: .85rem; opacity: .85; }
-        main { max-width: 760px; margin: 0 auto; padding: 16px; }
-        form { display: flex; gap: 8px; }
-        input { flex: 1; padding: 10px 12px; font-size: 1rem; border: 1px solid #b9c4d6; border-radius: 8px; }
-        button { padding: 10px 16px; font-size: 1rem; border: 0; border-radius: 8px; background: #0f4c81; color: #fff; cursor: pointer; }
-        button:disabled { background: #8aa3bd; cursor: default; }
-        .examples { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
-        .examples span { padding: 4px 10px; font-size: .85rem; background: #e3ecf7; border-radius: 14px; cursor: pointer; }
-        .box { margin-top: 14px; background: #fff; border: 1px solid #d8e0ec; border-radius: 10px; padding: 12px 14px; }
-        .box h2 { margin: 0 0 8px; font-size: .95rem; color: #4a5a78; }
-        .step { margin-bottom: 8px; font-size: .85rem; }
-        .step code { display: block; margin-top: 2px; padding: 6px 8px; background: #f1f4f9; border-radius: 6px; white-space: pre-wrap; word-break: break-all; color: #3b4660; }
-        .tool { display: inline-block; padding: 1px 8px; border-radius: 10px; color: #fff; font-size: .8rem; }
-        .tool.find_spots { background: #2e8b57; }
-        .tool.get_weather { background: #e08a1e; }
-        #answer { white-space: pre-wrap; line-height: 1.6; }
-        #map { height: 320px; border-radius: 8px; margin-top: 8px; }
-        #error { color: #c0392b; }
-        #keyBox { margin: 0 0 14px; }
-        .field { display: block; margin-top: 10px; font-size: .85rem; color: #4a5a78; }
-        .field input { display: block; width: 100%; margin-top: 4px; }
-        .remember { display: block; margin: 10px 0 4px; font-size: .9rem; }
-        .remember input { flex: none; }
-        .sub2 { font-size: .8rem; color: #6b7894; font-weight: normal; }
-        .guide { margin-top: 10px; line-height: 1.7; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+            font-size: 16px;
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+        main { max-width: 720px; margin: 0 auto; padding: 40px 20px 64px; }
+
+        .hero { margin-bottom: 28px; }
+        .hero h1 { margin: 0 0 8px; font-size: 1.7rem; line-height: 1.3; letter-spacing: -0.01em; }
+        .hero p { margin: 0; color: var(--muted); }
+
+        form { display: flex; gap: 10px; }
+        #q {
+            flex: 1; min-width: 0;
+            padding: 14px 16px;
+            font: inherit;
+            color: var(--text);
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+        #q::placeholder { color: var(--muted); }
+        #q:focus, button:focus-visible, .chip:focus-visible, summary:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+        #send {
+            padding: 0 22px;
+            font: inherit; font-weight: 600;
+            color: #fff;
+            background: var(--accent);
+            border: 0;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+        @media (prefers-color-scheme: dark) { #send { color: #10201c; } }
+        #send:disabled { opacity: .55; cursor: default; }
+
+        .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+        .chip {
+            padding: 6px 14px;
+            font: inherit; font-size: .9rem;
+            color: var(--accent);
+            background: var(--accent-soft);
+            border: 0;
+            border-radius: 999px;
+            cursor: pointer;
+        }
+
+        .card {
+            margin-top: 22px;
+            padding: 22px 24px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+        }
+        .card h2 { margin: 0 0 12px; font-size: .85rem; font-weight: 600; color: var(--muted); letter-spacing: .04em; }
+
+        #status { margin-top: 22px; color: var(--muted); }
+        #error { margin-top: 22px; color: var(--error); }
+
+        #answer p { margin: 0 0 14px; }
+        #answer p:last-child { margin-bottom: 0; }
+        #answer .item { padding-left: 1.4em; text-indent: -1.4em; }
+        #answer strong { color: var(--accent); font-weight: 700; }
+
+        #map { height: 300px; margin-top: 20px; border-radius: 12px; border: 1px solid var(--line); }
+        .mapnote { margin: 8px 0 0; font-size: .8rem; color: var(--muted); }
+
+        details.steps summary { cursor: pointer; font-size: .9rem; font-weight: 600; color: var(--muted); }
+        .step { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+        .step:first-of-type { border-top: 0; }
+        .badge { display: inline-block; padding: 1px 10px; font-size: .8rem; font-weight: 600; border-radius: 999px; }
+        .badge.find_spots { color: var(--accent); background: var(--accent-soft); }
+        .badge.get_weather { color: var(--weather); background: var(--weather-soft); }
+        .step .what { margin: 6px 0 0; font-size: .95rem; }
+        .step details { margin-top: 6px; font-size: .8rem; color: var(--muted); }
+        .step code {
+            display: block; margin-top: 6px; padding: 10px 12px;
+            font-family: ui-monospace, Consolas, monospace; font-size: .78rem; line-height: 1.5;
+            white-space: pre-wrap; word-break: break-all;
+            background: var(--bg); border-radius: 8px;
+        }
+
+        .leaflet-container { font-family: inherit; }
+        @media (max-width: 480px) {
+            main { padding: 28px 16px 48px; }
+            .hero h1 { font-size: 1.45rem; }
+            .card { padding: 18px; }
+        }
     </style>
 </head>
 <body>
-    <header>
-        <h1>🏝️ 제주 여행 추천 에이전트</h1>
-        <div class="sub">Gemini가 관광지 목록(find_spots)과 현재 날씨(get_weather, Open-Meteo) 도구를 스스로 골라 호출해서 추천해 줘요.</div>
-    </header>
-
     <main>
-        <details class="box" id="keyBox">
-            <summary><b>🔑 API 키 직접 입력</b> <span class="sub2">(선택 · 서버에 환경변수 GEMINI_API_KEY 가 설정돼 있으면 필요 없어요)</span></summary>
-            <label class="field">Gemini API 키
-                <input id="geminiKey" type="password" placeholder="AIza..." autocomplete="off">
-            </label>
-            <label class="remember"><input id="remember" type="checkbox"> 이 브라우저에 기억하기</label>
-            <div class="sub2 guide">
-                <b>키 발급 방법</b><br>
-                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com</a> 접속 → Google 로그인 → <b>Get API key</b> → <b>Create API key</b> → 만들어진 키 복사<br>
-                날씨는 Open-Meteo를 쓰기 때문에 키가 필요 없어요.
-            </div>
-            <div class="sub2">입력한 키는 이 사이트의 서버로 보내져 Google 호출에만 쓰이며 서버에 저장되지 않습니다. 공용 PC에서는 기억하기를 끄세요.</div>
-        </details>
+        <section class="hero">
+            <h1>🏝️ 제주 여행 추천</h1>
+            <p>가고 싶은 지역이나 상황을 말해 주세요. 관광지 목록과 현재 날씨를 확인해서 알맞은 곳을 골라 드려요.</p>
+        </section>
 
         <form id="form">
-            <input id="q" placeholder="예) 서귀포에서 오늘 가기 좋은 곳 알려줘" maxlength="200" autocomplete="off">
+            <input id="q" placeholder="예) 서귀포에서 오늘 가기 좋은 곳 알려줘" maxlength="200" autocomplete="off" aria-label="질문">
             <button id="send" type="submit">추천받기</button>
         </form>
-        <div class="examples">
-            <span>제주시에서 오늘 가기 좋은 곳 추천해줘</span>
-            <span>동쪽에서 비 와도 갈 만한 곳 있어?</span>
-            <span>서쪽 야외 관광지 추천해줘</span>
+
+        <div class="chips" id="chips">
+            <button type="button" class="chip">제주시에서 오늘 가기 좋은 곳 추천해줘</button>
+            <button type="button" class="chip">동쪽에서 비 와도 갈 만한 곳 있어?</button>
+            <button type="button" class="chip">서쪽 야외 관광지 추천해줘</button>
         </div>
 
-        <div id="error"></div>
+        <div id="status" hidden></div>
+        <div id="error" role="alert"></div>
 
-        <div class="box" id="stepBox" hidden>
-            <h2>에이전트가 한 일</h2>
-            <div id="steps"></div>
-        </div>
-
-        <div class="box" id="answerBox" hidden>
+        <section class="card" id="answerBox" hidden>
             <h2>추천</h2>
             <div id="answer"></div>
             <div id="map"></div>
-        </div>
+            <p class="mapnote" id="mapnote">지도의 위치는 지역 중심 기준의 대략적인 위치예요.</p>
+        </section>
+
+        <section class="card" id="stepBox" hidden>
+            <details class="steps">
+                <summary>에이전트가 한 일 보기</summary>
+                <div id="steps"></div>
+            </details>
+        </section>
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -93,10 +181,12 @@
             "서쪽(안덕)": [33.265, 126.330],
             "서귀포":     [33.254, 126.560]
         }
+        const toolLabel = { find_spots: "관광지 검색", get_weather: "날씨 확인" }
 
         const form = document.getElementById("form")
         const q = document.getElementById("q")
         const send = document.getElementById("send")
+        const statusEl = document.getElementById("status")
         const errorBox = document.getElementById("error")
         const stepBox = document.getElementById("stepBox")
         const stepsEl = document.getElementById("steps")
@@ -106,27 +196,8 @@
         let map = null
         let layer = null
 
-        const geminiKey = document.getElementById("geminiKey")
-        const remember = document.getElementById("remember")
-
-        // 기억하기를 켠 경우에만 이 브라우저(localStorage)에 키를 저장한다. 막혀 있어도 동작해야 한다.
-        try {
-            geminiKey.value = localStorage.getItem("geminiKey") || ""
-            remember.checked = !!geminiKey.value
-        } catch (err) {}
-
-        function saveKeys() {
-            try {
-                if (remember.checked) {
-                    localStorage.setItem("geminiKey", geminiKey.value.trim())
-                } else {
-                    localStorage.removeItem("geminiKey")
-                }
-            } catch (err) {}
-        }
-
-        for (const ex of document.querySelectorAll(".examples span")) {
-            ex.addEventListener("click", () => { q.value = ex.textContent; form.requestSubmit() })
+        for (const chip of document.querySelectorAll(".chip")) {
+            chip.addEventListener("click", () => { q.value = chip.textContent; form.requestSubmit() })
         }
 
         form.addEventListener("submit", async (e) => {
@@ -134,9 +205,10 @@
             const message = q.value.trim()
             if (!message) return
 
-            saveKeys()
             send.disabled = true
-            send.textContent = "생각 중..."
+            send.textContent = "찾는 중..."
+            statusEl.textContent = "관광지와 날씨를 확인하고 있어요. 잠시만 기다려 주세요."
+            statusEl.hidden = false
             errorBox.textContent = ""
             stepBox.hidden = true
             answerBox.hidden = true
@@ -145,24 +217,59 @@
                 const res = await fetch("/api/agent", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        message,
-                        geminiKey: geminiKey.value.trim()
-                    })
+                    body: JSON.stringify({ message })
                 })
                 const data = await res.json()
-                if (!res.ok) throw new Error(data.error || "요청 실패")
+                if (!res.ok) throw new Error(data.error || "요청에 실패했어요.")
                 show(data)
             } catch (err) {
-                errorBox.textContent = "오류: " + err.message
+                errorBox.textContent = "문제가 생겼어요: " + err.message
             } finally {
+                statusEl.hidden = true
                 send.disabled = false
                 send.textContent = "추천받기"
             }
         })
 
+        // **굵게** 표시만 지원하는 간단한 변환. 모든 글자는 textContent 로 넣어서 안전하다.
+        function renderAnswer(text) {
+            answerEl.textContent = ""
+            for (const raw of text.split("\n")) {
+                const line = raw.trim()
+                if (!line) continue
+                const p = document.createElement("p")
+                const isItem = /^(\d+[.)]|[-*•])\s+/.test(line)
+                if (isItem) p.className = "item"
+                const cleaned = isItem && /^[-*•]\s+/.test(line) ? "• " + line.replace(/^[-*•]\s+/, "") : line
+                cleaned.split(/(\*\*[^*]+\*\*)/).forEach(part => {
+                    if (/^\*\*[^*]+\*\*$/.test(part)) {
+                        const b = document.createElement("strong")
+                        b.textContent = part.slice(2, -2)
+                        p.appendChild(b)
+                    } else if (part) {
+                        p.appendChild(document.createTextNode(part))
+                    }
+                })
+                answerEl.appendChild(p)
+            }
+        }
+
+        function describe(step) {
+            const a = step.input || {}
+            if (step.tool === "get_weather") {
+                const o = step.output || {}
+                if (o.error) return a.area + " 날씨를 가져오지 못했어요."
+                return a.area + " 날씨 확인: " + o.description + ", " + o.temp + "°C (오늘 비 올 확률 " + o.today_rain_chance_percent + "%)"
+            }
+            const kind = a.indoor === true ? "실내" : a.indoor === false ? "야외" : "전체"
+            const total = step.output && step.output.total
+            return a.area + " " + kind + " 관광지 검색" + (total !== undefined ? ": " + total + "곳 중 일부" : "")
+        }
+
         function show(data) {
-            // 에이전트가 어떤 도구를 어떤 입력으로 불렀는지 보여준다.
+            renderAnswer(data.reply || "추천 결과가 비어 있어요.")
+            answerBox.hidden = false
+
             stepsEl.textContent = ""
             if (data.steps.length === 0) {
                 stepsEl.textContent = "도구를 호출하지 않고 바로 답했어요."
@@ -170,21 +277,29 @@
             for (const s of data.steps) {
                 const div = document.createElement("div")
                 div.className = "step"
-                const tag = document.createElement("span")
-                tag.className = "tool " + s.tool
-                tag.textContent = s.tool
+
+                const badge = document.createElement("span")
+                badge.className = "badge " + s.tool
+                badge.textContent = toolLabel[s.tool] || s.tool
+
+                const what = document.createElement("p")
+                what.className = "what"
+                what.textContent = describe(s)
+
+                const detail = document.createElement("details")
+                const sum = document.createElement("summary")
+                sum.textContent = "자세히 (" + s.tool + ")"
                 const input = document.createElement("code")
                 input.textContent = "입력: " + JSON.stringify(s.input)
                 const output = document.createElement("code")
                 const text = JSON.stringify(s.output)
-                output.textContent = "결과: " + (text.length > 300 ? text.slice(0, 300) + "..." : text)
-                div.append(tag, input, output)
+                output.textContent = "결과: " + (text.length > 400 ? text.slice(0, 400) + "..." : text)
+                detail.append(sum, input, output)
+
+                div.append(badge, what, detail)
                 stepsEl.appendChild(div)
             }
             stepBox.hidden = false
-
-            answerEl.textContent = data.reply
-            answerBox.hidden = false
 
             // find_spots 가 돌려준 장소를 지역 중심에 마커로 찍는다.
             const groups = {}
@@ -195,6 +310,12 @@
                 }
             }
 
+            const mapEl = document.getElementById("map")
+            const hasPlaces = Object.keys(groups).length > 0
+            mapEl.hidden = !hasPlaces
+            document.getElementById("mapnote").hidden = !hasPlaces
+            if (!hasPlaces) return
+
             if (!map) {
                 map = L.map("map").setView([33.38, 126.55], 9)
                 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -204,7 +325,6 @@
                 layer = L.layerGroup().addTo(map)
             }
             layer.clearLayers()
-            document.getElementById("map").hidden = false
             map.invalidateSize()
 
             const points = []
@@ -224,7 +344,6 @@
                 L.marker(pos).addTo(layer).bindPopup(popup).bindTooltip(name + " " + spots.length + "곳")
             }
             if (points.length) map.fitBounds(points, { padding: [40, 40], maxZoom: 11 })
-            document.getElementById("map").hidden = points.length === 0
         }
     </script>
 </body>
