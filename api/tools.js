@@ -12,24 +12,39 @@ const AREA_POINT = {
   '제주시': { lat: 33.500, lon: 126.531 }
 };
 
-// 입력: { area: '동쪽'|'서쪽'|'서귀포'|'제주시', indoor?: boolean }
+// 지역별로 데이터에 들어 있는 동·읍·면 이름 (예: 제주시 -> 연동, 노형동, 애월읍 ...)
+const DONGS_BY_AREA = {};
+for (const a of AREAS) {
+  DONGS_BY_AREA[a] = [...new Set(data.spots.filter(s => s.area.startsWith(a) && s.dong).map(s => s.dong))];
+}
+
+// 입력: { area: '동쪽'|'서쪽'|'서귀포'|'제주시', dong?: string, indoor?: boolean }
 // JSON 의 area 는 '동쪽(성산)' 처럼 괄호가 붙어 있어서 앞부분이 같은지로 비교한다.
-function find_spots({ area, indoor } = {}) {
+// dong 은 '연동' 처럼 정확히 쓰거나 '노형' 처럼 앞부분만 써도 찾는다.
+function find_spots({ area, dong, indoor } = {}) {
   if (!AREAS.includes(area)) {
     return { error: 'area 는 ' + AREAS.join(' · ') + ' 중 하나여야 합니다.' };
   }
+  const wanted = typeof dong === 'string' ? dong.trim() : '';
   const matched = data.spots.filter(s =>
-    s.area.startsWith(area) && (typeof indoor !== 'boolean' || s.indoor === indoor)
+    s.area.startsWith(area) &&
+    (!wanted || (s.dong && s.dong.startsWith(wanted))) &&
+    (typeof indoor !== 'boolean' || s.indoor === indoor)
   );
-  return {
+  const result = {
     total: matched.length,
     spots: matched.slice(0, MAX_RESULTS).map(s => ({
       name: s.name,
       areas: s.area,
+      dong: s.dong || '',
       indoor: s.indoor,
       description: s.type
     }))
   };
+  if (wanted && matched.length === 0) {
+    result.note = '"' + wanted + '" 에 해당하는 장소가 목록에 없다. ' + area + '에서 쓸 수 있는 동·읍·면: ' + DONGS_BY_AREA[area].join(', ');
+  }
+  return result;
 }
 
 // Open-Meteo 의 날씨 코드(WMO) -> 한글 설명
@@ -83,7 +98,9 @@ const find_spots_tool = {
   name: 'find_spots',
   description:
     '제주도 관광지 목록(jeju_spots.json)에서 지역과 실내/야외 조건에 맞는 장소를 최대 8곳 찾아 준다. ' +
-    '각 장소의 이름 · 지역 · 실내 여부 · 설명(유형)을 돌려준다. ' +
+    '각 장소의 이름 · 지역 · 동/읍/면 · 실내 여부 · 설명(유형)을 돌려준다. ' +
+    '사용자가 연동 · 노형동 · 중문동 · 애월 같은 동/읍/면을 말하면 그 이름을 dong 에 넣고, 해당하는 area 도 함께 지정한다. ' +
+    '선택할 수 있는 dong: ' + AREAS.map(a => a + '(' + DONGS_BY_AREA[a].join(', ') + ')').join(' / ') + '. ' +
     '목록 밖 장소는 없다: 결과에 없는 장소를 추천하거나 지어내지 말고, 결과가 비어 있으면 없다고 답한다.',
   input_schema: {
     type: 'object',
@@ -91,7 +108,11 @@ const find_spots_tool = {
       area: {
         type: 'string',
         enum: AREAS,
-        description: '찾을 지역'
+        description: '찾을 지역. dong 이 속한 지역을 넣는다 (예: 연동 -> 제주시, 중문동 -> 서귀포).'
+      },
+      dong: {
+        type: 'string',
+        description: '동/읍/면 이름 (예: 연동, 노형동, 중문동, 애월읍). 생략하면 지역 전체.'
       },
       indoor: {
         type: 'boolean',

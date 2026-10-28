@@ -263,7 +263,7 @@
             }
             const kind = a.indoor === true ? "실내" : a.indoor === false ? "야외" : "전체"
             const total = step.output && step.output.total
-            return a.area + " " + kind + " 관광지 검색" + (total !== undefined ? ": " + total + "곳 중 일부" : "")
+            return a.area + (a.dong ? " " + a.dong : "") + " " + kind + " 관광지 검색" + (total !== undefined ? ": " + total + "곳 중 일부" : "")
         }
 
         function show(data) {
