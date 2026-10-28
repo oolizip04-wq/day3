@@ -3,112 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>제주 관광지 지도</title>
+    <title>실시간 지진 지도</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <style>
-        body { font-family: sans-serif; margin: 0; padding: 16px; }
-        form { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 12px; }
-        #map { height: 60vh; min-height: 320px; border-radius: 8px; }
-        #msg { margin: 8px 0; color: #555; }
-        #list { padding-left: 20px; }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: sans-serif; background: #0b0f1a; color: #e8ecf5; }
+        header { padding: 14px 16px 6px; }
+        h1 { margin: 0 0 4px; font-size: 1.4rem; }
+        .sub { color: #8b95ad; font-size: .85rem; }
+        .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 8px 16px; }
+        select, button { background: #1a2238; color: #e8ecf5; border: 1px solid #2c3757; border-radius: 6px; padding: 6px 10px; font-size: .95rem; }
+        .stats { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 16px 10px; }
+        .card { background: #131a2c; border: 1px solid #222c47; border-radius: 8px; padding: 8px 14px; }
+        .card b { display: block; font-size: 1.3rem; }
+        .card span { color: #8b95ad; font-size: .8rem; }
+        #map { height: 58vh; min-height: 320px; margin: 0 16px; border-radius: 10px; background: #0b0f1a; }
+        .legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 16px; font-size: .8rem; color: #8b95ad; }
+        .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+        h2 { margin: 6px 16px; font-size: 1.05rem; }
+        #list { list-style: none; margin: 0; padding: 0 16px 24px; }
+        #list li { display: flex; gap: 10px; align-items: center; padding: 8px 10px; margin-bottom: 6px; background: #131a2c; border: 1px solid #222c47; border-radius: 8px; cursor: pointer; }
+        #list li:hover { border-color: #4a5a8c; }
+        .mag { min-width: 46px; text-align: center; font-weight: bold; border-radius: 6px; padding: 4px 0; color: #111; }
+        .meta { font-size: .8rem; color: #8b95ad; }
+        .pulse { width: 18px; height: 18px; border-radius: 50%; background: rgba(255, 255, 255, .85); animation: pulse 1.6s ease-out infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, .7); } 100% { box-shadow: 0 0 0 28px rgba(255, 255, 255, 0); } }
     </style>
 </head>
 <body>
-    <h1>제주 관광지 지도</h1>
-    <form id="form">
-        <label>지역
-            <select id="area">
-                <option>동쪽</option>
-                <option>서쪽</option>
-                <option>서귀포</option>
-                <option>제주시</option>
+    <header>
+        <h1>🌍 실시간 지진 지도</h1>
+        <div class="sub">USGS(미국 지질조사국) 공공데이터 · 1분마다 자동 갱신 · 원이 클수록 강한 지진</div>
+    </header>
+
+    <div class="bar">
+        <label>보기
+            <select id="feed">
+                <option value="all_hour">최근 1시간 (전체)</option>
+                <option value="2.5_day" selected>최근 24시간 (규모 2.5+)</option>
+                <option value="2.5_week">최근 7일 (규모 2.5+)</option>
+                <option value="4.5_month">최근 30일 (규모 4.5+)</option>
             </select>
         </label>
-        <label>실내/야외
-            <select id="indoor">
-                <option value="">전체</option>
-                <option value="true">실내</option>
-                <option value="false">야외</option>
-            </select>
-        </label>
-        <button type="submit">찾기</button>
-    </form>
-    <div id="msg"></div>
+        <button id="reload">새로고침</button>
+        <span id="status" class="sub"></span>
+    </div>
+
+    <div class="stats">
+        <div class="card"><b id="s-count">-</b><span>지진 횟수</span></div>
+        <div class="card"><b id="s-max">-</b><span>최대 규모</span></div>
+        <div class="card"><b id="s-latest">-</b><span>가장 최근</span></div>
+    </div>
+
     <div id="map"></div>
+
+    <div class="legend" id="legend"></div>
+
+    <h2>강한 지진 TOP 10 (누르면 지도로 이동)</h2>
     <ul id="list"></ul>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 장소별 좌표가 없어서, 지역(areas)의 중심 좌표에 묶어서 표시한다. (대략적인 위치)
-        const center = {
-            "동쪽(성산)": [33.458, 126.942],
-            "동쪽(구좌)": [33.520, 126.850],
-            "제주시":     [33.500, 126.531],
-            "서쪽(한림)": [33.414, 126.268],
-            "서쪽(안덕)": [33.265, 126.330],
-            "서귀포":     [33.254, 126.560]
-        }
+        const BASE = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/"
 
-        const map = L.map("map").setView([33.38, 126.55], 10)
-        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            maxZoom: 18,
-            attribution: "&copy; OpenStreetMap"
+        // 규모 -> 색 (밝은 노랑 → 주황 → 빨강 → 자주)
+        const colors = [
+            { min: 0, color: "#ffe066", label: "~3" },
+            { min: 3, color: "#ffb02e", label: "3~4" },
+            { min: 4, color: "#ff6b35", label: "4~5" },
+            { min: 5, color: "#ff2e4d", label: "5~6" },
+            { min: 6, color: "#d61fd6", label: "6+" }
+        ]
+        const colorOf = (mag) => colors.filter(c => mag >= c.min).pop().color
+
+        document.getElementById("legend").innerHTML = colors
+            .map(c => `<span><i style="background:${c.color}"></i>규모 ${c.label}</span>`).join("")
+
+        const map = L.map("map", { worldCopyJump: true }).setView([20, 130], 2)
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+            maxZoom: 10,
+            attribution: "&copy; OpenStreetMap &copy; CARTO · 지진 데이터 USGS"
         }).addTo(map)
         const layer = L.layerGroup().addTo(map)
 
-        const msg = document.getElementById("msg")
+        const feedSelect = document.getElementById("feed")
+        const status = document.getElementById("status")
         const list = document.getElementById("list")
 
-        document.getElementById("form").addEventListener("submit", async (e) => {
-            e.preventDefault()
-            const area = document.getElementById("area").value
-            const indoor = document.getElementById("indoor").value
-            const query = new URLSearchParams({ area })
-            if (indoor) query.set("indoor", indoor)
+        const fmt = (t) => new Date(t).toLocaleString("ko-KR")
 
+        async function load() {
+            status.textContent = "불러오는 중..."
+            try {
+                const res = await fetch(BASE + feedSelect.value + ".geojson")
+                if (!res.ok) throw new Error("USGS 응답 오류 (" + res.status + ")")
+                const data = await res.json()
+                draw(data.features)
+                status.textContent = "갱신: " + new Date().toLocaleTimeString("ko-KR")
+            } catch (err) {
+                status.textContent = "오류: " + err.message
+            }
+        }
+
+        function draw(quakes) {
             layer.clearLayers()
             list.textContent = ""
-            msg.textContent = "찾는 중..."
 
-            try {
-                const res = await fetch("/api/find_spots?" + query)
-                const data = await res.json()
-                if (!res.ok) throw new Error(data.error || "요청 실패")
+            const valid = quakes.filter(q => q.properties.mag !== null)
+            valid.sort((a, b) => b.properties.mag - a.properties.mag)
 
-                msg.textContent = `조건에 맞는 곳 ${data.total}곳 중 ${data.spots.length}곳을 표시합니다.`
+            document.getElementById("s-count").textContent = valid.length.toLocaleString()
+            document.getElementById("s-max").textContent = valid.length ? valid[0].properties.mag.toFixed(1) : "-"
+            const latest = valid.reduce((m, q) => Math.max(m, q.properties.time), 0)
+            document.getElementById("s-latest").textContent = latest ? Math.max(0, Math.round((Date.now() - latest) / 60000)) + "분 전" : "-"
 
-                // 같은 지역끼리 묶는다.
-                const groups = {}
-                for (const s of data.spots) {
-                    (groups[s.areas] = groups[s.areas] || []).push(s)
+            const hourAgo = Date.now() - 60 * 60 * 1000
 
-                    const li = document.createElement("li")
-                    li.textContent = `${s.name} (${s.areas}, ${s.indoor ? "실내" : "야외"}) - ${s.description}`
-                    list.appendChild(li)
+            // 약한 지진을 먼저 그려서 강한 지진이 위에 보이게 한다.
+            for (const q of [...valid].reverse()) {
+                const p = q.properties
+                const [lng, lat, depth] = q.geometry.coordinates
+                const color = colorOf(p.mag)
+
+                const circle = L.circleMarker([lat, lng], {
+                    radius: Math.max(4, p.mag * p.mag * 0.9),
+                    color: color,
+                    weight: 1,
+                    fillColor: color,
+                    fillOpacity: 0.45
+                }).addTo(layer)
+
+                const box = document.createElement("div")
+                const title = document.createElement("b")
+                title.textContent = "규모 " + p.mag.toFixed(1)
+                box.appendChild(title)
+                for (const text of [p.place || "위치 정보 없음", fmt(p.time), "깊이 " + Math.round(depth) + " km"]) {
+                    const line = document.createElement("div")
+                    line.textContent = text
+                    box.appendChild(line)
                 }
-
-                const points = []
-                for (const [name, spots] of Object.entries(groups)) {
-                    const pos = center[name]
-                    if (!pos) continue
-                    points.push(pos)
-
-                    const popup = document.createElement("div")
-                    const title = document.createElement("b")
-                    title.textContent = name
-                    popup.appendChild(title)
-                    for (const s of spots) {
-                        const line = document.createElement("div")
-                        line.textContent = `${s.name} · ${s.indoor ? "실내" : "야외"} · ${s.description}`
-                        popup.appendChild(line)
-                    }
-                    L.marker(pos).addTo(layer).bindPopup(popup).bindTooltip(`${name} ${spots.length}곳`)
+                if (p.url) {
+                    const a = document.createElement("a")
+                    a.href = p.url
+                    a.target = "_blank"
+                    a.rel = "noopener"
+                    a.textContent = "USGS 상세 보기"
+                    box.appendChild(a)
                 }
-                if (points.length) map.fitBounds(points, { padding: [40, 40], maxZoom: 11 })
-            } catch (err) {
-                msg.textContent = "오류: " + err.message
+                circle.bindPopup(box)
+
+                // 최근 1시간 안에 일어난 지진은 깜빡이는 파동으로 표시한다.
+                if (p.time > hourAgo) {
+                    L.marker([lat, lng], {
+                        icon: L.divIcon({ className: "", html: '<div class="pulse"></div>', iconSize: [18, 18] }),
+                        interactive: false
+                    }).addTo(layer)
+                }
             }
-        })
+
+            for (const q of valid.slice(0, 10)) {
+                const p = q.properties
+                const [lng, lat] = q.geometry.coordinates
+                const li = document.createElement("li")
+
+                const mag = document.createElement("div")
+                mag.className = "mag"
+                mag.style.background = colorOf(p.mag)
+                mag.textContent = p.mag.toFixed(1)
+
+                const info = document.createElement("div")
+                const place = document.createElement("div")
+                place.textContent = p.place || "위치 정보 없음"
+                const meta = document.createElement("div")
+                meta.className = "meta"
+                meta.textContent = fmt(p.time)
+                info.append(place, meta)
+
+                li.append(mag, info)
+                li.addEventListener("click", () => {
+                    map.flyTo([lat, lng], 5)
+                    window.scrollTo({ top: 0, behavior: "smooth" })
+                })
+                list.appendChild(li)
+            }
+        }
+
+        feedSelect.addEventListener("change", load)
+        document.getElementById("reload").addEventListener("click", load)
+        setInterval(load, 60000)
+        load()
     </script>
 </body>
 </html>
