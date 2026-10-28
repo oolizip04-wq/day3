@@ -104,8 +104,18 @@ const get_weather_tool = {
   }
 };
 
+const tools = [find_spots_tool, get_weather_tool];
+
+// Gemini API 의 functionDeclarations 형식 (input_schema 가 parameters 로 이름만 다르다)
+const functionDeclarations = tools.map(t => ({
+  name: t.name,
+  description: t.description,
+  parameters: t.input_schema
+}));
+
 module.exports = {
-  tools: [find_spots_tool, get_weather_tool],
+  tools,
+  functionDeclarations,
   handlers: { find_spots, get_weather },
   find_spots,
   get_weather,
